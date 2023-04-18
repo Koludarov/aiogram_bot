@@ -12,10 +12,12 @@
 
 ## Установка
 
-1. Склонируйте репозиторий: git clone https://github.com/Koludarov/aiogram_bot.git
-2. Установите зависимости: pip install -r requirements.txt
+1. Склонируйте репозиторий:      
+ `git clone https://github.com/Koludarov/aiogram_bot.git `<br>
+2. Установите зависимости:
+ <br>`pip install -r requirements.txt `
 3. Создайте файл .env и добавьте в него необходимые переменные окружения (TOKEN для доступа к API Telegram, WEATHER_API_KEY для доступа к API погоды, EXCHANGE_API_KEY для доступа к API курсов валют, ANIMALS_API_KEY для доступа к API с картинками).
-4. Запустите бота: python bot.py
+4. Запустите бота: `python bot.py`
 ## Пример использования
 1. Запустите бота и напишите ему /start, чтобы получить список доступных функций.
 2. Чтобы узнать текущую погоду в городе, напишите `/weather ` 
