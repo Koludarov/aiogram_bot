@@ -29,7 +29,6 @@ class CreatePoll(StatesGroup):
 
 
 # Создаем бота
-bot = Bot(token=os.environ.get('BOT_TOKEN'))
 storage = MemoryStorage()
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot,
