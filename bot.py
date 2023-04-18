@@ -1,4 +1,6 @@
 import os
+import logging
+
 import requests
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
@@ -7,10 +9,24 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
+from dotenv import load_dotenv
+
+# Создаём логгирование
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename='aiogram_bot.log',
+    format='[%(asctime)s | %(levelname)s]: %(message)s',
+    datefmt='%m.%d.%Y %H:%M:%S',
+    level=logging.INFO
+)
+
+# Забираем значения из .env файла
+load_dotenv()
+
 # API ключи
 WEATHER_API_KEY = os.environ.get('WEATHER_API_KEY')
 EXCHANGE_API_KEY = os.environ.get('EXCHANGE_API_KEY')
-ANIMALS_API_KEY =  os.environ.get('ANIMALS_API_KEY')
+ANIMALS_API_KEY = os.environ.get('ANIMALS_API_KEY')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
 
@@ -70,6 +86,9 @@ async def help_handler(message: types.Message):
 @dp.message_handler(commands=['weather'])
 @dp.message_handler(lambda message: message.text == 'Погода 🌦')
 async def weather(message: types.Message):
+    """
+    Обрабатывает команду /weather и запускает состояние.
+    """
     await message.answer('Какой город вам интересен?')
     await WeatherState.city.set()
 
@@ -99,6 +118,7 @@ async def get_weather(message: types.Message, state: FSMContext):
             f'Влажность {humidity}%, скорость ветра {wind_speed} м/с.')
     else:
         await message.answer(f'Не удалось получить погоду для {city}.')
+        logging.exception(f'Ошибка при подключении к api.openweathermap. Код {response["cod"]}')
     # Сбрасываем состояние
     await state.finish()
 
@@ -107,15 +127,22 @@ async def get_weather(message: types.Message, state: FSMContext):
 @dp.message_handler(commands=['currency_converter'])
 @dp.message_handler(lambda message: message.text == 'Конвертер валют 💰')
 async def handle_convert(message: types.Message):
+    """
+    Обрабатывает команду /currency_converter и запускает состояние.
+    """
     await message.answer('Укажите сумму и валюты в формате: \n <сумма> <Валюта1> <Валюта2> ')
     await ExchangeState.currency.set()
 
 
 @dp.message_handler(state=ExchangeState.currency)
 async def convert_currency(message: types.Message, state: FSMContext):
+    """
+    Получает курс валют, конвертирует и отправляет результат пользователю.
+    """
     # Обработка выхода из состояния
     if message.text == 'Меню':
         await state.finish()
+        await message.reply('Успешно вернулись в меню\nПомощь - /help')
         return
 
     try:
@@ -145,6 +172,8 @@ async def convert_currency(message: types.Message, state: FSMContext):
     # Обработка ответа от API
     if response.status_code != 200:
         await message.reply("Ошибка при получении курса валют.")
+        logging.exception(f'Ошибка при подключении к api.apilayer. {response.status_code}')
+        await state.finish()
         return
     data = response.json()
     try:
@@ -167,6 +196,9 @@ async def convert_currency(message: types.Message, state: FSMContext):
 @dp.message_handler(commands=['cute_animals'])
 @dp.message_handler(lambda message: message.text == 'Милые животные 🐶')
 async def send_random_animal_image(message: types.Message):
+    """
+    Обрабатывает команду /cute_animals и отправляет картинку с животным.
+    """
     try:
         # Получаем случайную картинку животного
         response = requests.get(f"https://api.unsplash.com/photos/random",
@@ -179,15 +211,19 @@ async def send_random_animal_image(message: types.Message):
         image_url = data["urls"]["regular"]
         await bot.send_photo(message.chat.id, photo=image_url)
 
-    except Exception as e:
+    except Exception as error:
         # Обрабатываем ошибки и сообщаем пользователю
-        # logging.exception(e)
+        logging.exception(f'Ошибка при подключении к api.unsplash. {error}')
         await message.reply("Не удалось отправить картинку :(")
 
 
 @dp.message_handler(commands=['survey'])
 @dp.message_handler(lambda message: message.text == 'Опросы 📊')
 async def create_poll(message: types.Message, state: FSMContext):
+    """
+    Обрабатывает команду /survey и запускает состояние.
+    """
+    # Проверяем находимся ли мы в группе
     if message.chat.type != types.ChatType.GROUP:
         await message.answer("Введите id чата, в который хотите отправить опрос:")
         await CreatePoll.chat_id.set()
@@ -200,6 +236,9 @@ async def create_poll(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=CreatePoll.chat_id)
 async def process_chat_id(message: types.Message, state: FSMContext):
+    """
+    Записывает chat_id диалога для опроса.
+    """
     async with state.proxy() as data:
         data['chat_id'] = message.text
     await message.answer("Введите название опроса:")
@@ -208,14 +247,21 @@ async def process_chat_id(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=CreatePoll.poll_name)
 async def process_poll_name(message: types.Message, state: FSMContext):
+    """
+    Записывает poll_name - Название для опроса.
+    """
     async with state.proxy() as data:
         data['poll_name'] = message.text
-    await message.answer("Введите варианты ответов (каждый в новой строке), разделяя их знаком ';':")
+    await message.answer("Введите варианты ответов, разделяя их знаком ';'\n(Минимальное количество вариантов 2):")
     await CreatePoll.next()
 
 
 @dp.message_handler(state=CreatePoll.poll_options)
 async def process_poll_options(message: types.Message, state: FSMContext):
+    """
+    Записывает poll_options варианты ответа на опрос.
+    Если всё корректно, то отправляет опрос в диалог.
+    """
     async with state.proxy() as data:
         data['poll_options'] = message.text.split(';')
         poll_name = data['poll_name']
@@ -226,12 +272,13 @@ async def process_poll_options(message: types.Message, state: FSMContext):
                             question=poll_name,
                             options=poll_options)
         await message.answer("Опрос успешно создан!")
-    except Exception as e:
-        print(e)
+    except Exception as error:
+        logging.exception(f'Опрос не создан. Ошибка {error}')
         await message.answer("Не удалось создать опрос :(")
 
     await state.finish()
 
 
 if __name__ == '__main__':
+    # Запускаем бота
     executor.start_polling(dp, skip_updates=True)
