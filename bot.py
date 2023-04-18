@@ -8,10 +8,11 @@ from aiogram.utils import executor
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.utils import exceptions
 
 from dotenv import load_dotenv
 
-# Создаём логгирование
+# Подключаем логгирование
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     filename='aiogram_bot.log',
@@ -31,24 +32,27 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
 
 class WeatherState(StatesGroup):
+    """Состояние для запроса погоды"""
     city = State()
 
 
 class ExchangeState(StatesGroup):
+    """Состояние для запроса конвертации валюты"""
     currency = State()
 
 
 class CreatePoll(StatesGroup):
+    """Состояние для создания опроса"""
     poll_name = State()
     poll_options = State()
     chat_id = State()
 
 
-# Создаем бота
+# Хранилище для состояний
 storage = MemoryStorage()
+# Создаем бота
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot,
-                storage=storage)
+dp = Dispatcher(bot, storage=storage)
 
 
 # Функция приветствия
@@ -272,9 +276,18 @@ async def process_poll_options(message: types.Message, state: FSMContext):
                             question=poll_name,
                             options=poll_options)
         await message.answer("Опрос успешно создан!")
-    except Exception as error:
-        logging.exception(f'Опрос не создан. Ошибка {error}')
-        await message.answer("Не удалось создать опрос :(")
+    except exceptions.ChatNotFound:
+        logging.exception(f'Опрос не создан: {exceptions.ChatNotFound.text}')
+        await message.answer("Чат с таким номером не найден\nНе удалось отправить опрос 😢")
+    except exceptions.PollMustHaveMoreOptions:
+        logging.exception(f'Опрос не создан: {exceptions.PollMustHaveMoreOptions.text}')
+        await message.answer("Должно быть как минимум 2 варианта ответа\nНе удалось создать опрос 😢")
+    except exceptions.PollCantHaveMoreOptions:
+        logging.exception(f'Опрос не создан: {exceptions.PollCantHaveMoreOptions.text}')
+        await message.answer("В опросе может быть не больше 10 вариантов ответа\nНе удалось создать опрос 😢")
+    except exceptions.PollOptionsMustBeNonEmpty:
+        logging.exception(f'Опрос не создан: {exceptions.PollOptionsMustBeNonEmpty.text}')
+        await message.answer("Вариант ответа не может быть пустым\nНе удалось создать опрос 😢")
 
     await state.finish()
 
